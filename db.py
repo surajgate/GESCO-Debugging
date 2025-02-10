@@ -28,6 +28,7 @@ metadata.reflect(bind=engine)
 chats = Table("chats", metadata, autoload_with=engine)
 user = Table("users", metadata, autoload_with=engine)
 chat_feedback = Table("pdf_chat_feedback", metadata, autoload_with=engine)
+user_departments = Table("user_departments", metadata, autoload_with=engine)
 
 def get_db():
     db = SessionLocal()

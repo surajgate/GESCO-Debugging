@@ -7,14 +7,14 @@ from datetime import datetime, timezone, timedelta, date
 from sqlalchemy import func, or_
 from sqlalchemy.dialects.postgresql import JSONB
 
-from db import get_db, chats, chat_feedback, user
+from db import get_db, chats, chat_feedback, user, user_departments
 
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 
-EMAIL_LIST_FOR_CHAT_QUERY = os.getenv("EMAIL_LIST_FOR_CHAT_QUERY", [])
+DEPARTMENT_ID = os.getenv("DEPARTMENT_ID","")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
 RECEIVER_EMAILS = os.getenv("RECEIVER_EMAILS", [])
 SMTP_SERVER = os.getenv("SMTP_SERVER", "")
@@ -54,8 +54,8 @@ def fetch_feedback_data_in_chunks(chunk_size=10000):
         today = date.today()
 
         # Define the query and the filters upfront
-        email_list = convert_str_to_list(EMAIL_LIST_FOR_CHAT_QUERY)
-        
+        users_list = db.query(user_departments.c.user_id).filter(user_departments.c.department_id == DEPARTMENT_ID)
+        user_ids = [user_id[0] for user_id in users_list]
         query = (
             db.query(
                 user.c.id.label("user_id"),
@@ -75,24 +75,24 @@ def fetch_feedback_data_in_chunks(chunk_size=10000):
             )
             .join(chats, chats.c.user_id == user.c.id)
             .outerjoin(chat_feedback, chat_feedback.c.chat_id == chats.c.id)
-            .filter(user.c.email.in_(email_list))
+            .filter(user.c.id.in_(user_ids))
             .order_by(chats.c.created_at.desc())
         )
 
         # Define aggregate queries in a more efficient way
-        base_query = db.query(chats.c.id).join(user, chats.c.user_id == user.c.id).filter(user.c.email.in_(email_list))
+        base_query = db.query(chats.c.id).join(user, chats.c.user_id == user.c.id).filter(user.c.id.in_(user_ids))
 
         total_number_of_chats = base_query
         total_number_of_feedback = (
             db.query(chat_feedback.c.id)
             .join(chats, chat_feedback.c.chat_id == chats.c.id)
             .join(user, chats.c.user_id == user.c.id)
-            .filter(user.c.email.in_(email_list))
+            .filter(user.c.id.in_(user_ids))
         )
         total_number_of_answers_without_citations = (
             db.query(chats.c.id)
             .join(user, chats.c.user_id == user.c.id)
-            .filter(user.c.email.in_(email_list))
+            .filter(user.c.id.in_(user_ids))
             .filter(
                 or_(
                     func.cast(chats.c.citations, JSONB) == '{}',
@@ -172,9 +172,8 @@ def send_email_with_attachment(
     sender_email, 
     receiver_emails, 
     subject, 
-    body, 
-    file_content, 
-    filename, 
+    body,
+    attachments,
     smtp_server, 
     smtp_port, 
     smtp_username, 
@@ -206,15 +205,19 @@ def send_email_with_attachment(
 
         msg.attach(MIMEText(body, 'html'))
 
-        # Attaching the file content (in-memory file)
-        part = MIMEBase('application', 'octet-stream')
-        part.set_payload(file_content.getvalue())
-        encoders.encode_base64(part)
-        part.add_header(
-            'Content-Disposition', 
-            f'attachment; filename={filename}'
-        )
-        msg.attach(part)
+        # Attaching multiple files from the list of dictionaries
+        for attachment in attachments:
+            file_content = attachment["content"]
+            filename = attachment["filename"]
+
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(file_content.getvalue())  # Read file content
+            encoders.encode_base64(part)
+            part.add_header(
+                'Content-Disposition', 
+                f'attachment; filename={filename}'
+            )
+            msg.attach(part)
 
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
@@ -232,7 +235,8 @@ def main():
     Main function to orchestrate the workflow of fetching feedback data,
     exporting it to an in-memory CSV, and sending it via email.
     """
-    output_file_name = f"feedback_data_{current_date}.csv"
+    feedback_output_file_name = f"feedback_data_{current_date}.csv"
+    mmr_chunks_file_name = f"mmr_chunks_{current_date}.csv"
 
     # Fetch feedback data in chunks
     (
@@ -241,9 +245,14 @@ def main():
         total_number_of_feedback_today, total_number_of_answers_without_citations_today
     ) = fetch_feedback_data_in_chunks()
 
-    file_content = export_to_csv(feedback_data)
-    
-    if not file_content:
+    feedback_file_content = export_to_csv(feedback_data)
+    attachments = [
+        {
+            "filename": feedback_output_file_name,
+            "content": feedback_file_content
+        }
+    ]
+    if not feedback_file_content:
         print("Failed to export feedback data")
         return
     
@@ -287,7 +296,7 @@ def main():
                         <tr style="color: red;">
                             <td><strong>Answers without Citations</strong></td>
                             <td>{total_number_of_answers_without_citations}</td>
-                            <td>{total_number_of_answers_without_citations_today}</td>
+                            <td style="{ 'color: red;' if total_number_of_answers_without_citations_today > 0 else 'color: green;' }">{total_number_of_answers_without_citations_today}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -300,15 +309,14 @@ def main():
             </body>
             </html>
             """
-
+    
     # Send the email with attachment
     email_success = send_email_with_attachment(
         sender_email=SENDER_EMAIL,
         receiver_emails=convert_str_to_list(RECEIVER_EMAILS),
         subject=subject,
         body=body,
-        file_content=file_content,
-        filename=output_file_name,
+        attachments=attachments,
         smtp_server=SMTP_SERVER,
         smtp_port=SMTP_PORT,
         smtp_username=SMTP_USERNAME,
