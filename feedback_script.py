@@ -3,11 +3,13 @@ import json
 import smtplib
 import pandas as pd
 
+from io import StringIO
 from datetime import datetime, timezone, timedelta, date
 from sqlalchemy import func, or_
 from sqlalchemy.dialects.postgresql import JSONB
 
 from db import get_db, chats, chat_feedback, user, user_departments
+from mmr_chunks_retrieval_script import save_chunks_to_stringio
 
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -146,7 +148,6 @@ def export_to_csv(feedback_data):
     
     try:
         first_chunk = True
-        from io import StringIO
         output = StringIO()
 
         for chunk in feedback_data:
@@ -236,7 +237,7 @@ def main():
     exporting it to an in-memory CSV, and sending it via email.
     """
     feedback_output_file_name = f"feedback_data_{current_date}.csv"
-    mmr_chunks_file_name = f"mmr_chunks_{current_date}.csv"
+    mmr_chunks_file_name = f"mmr_chunks_{current_date}.txt"
 
     # Fetch feedback data in chunks
     (
@@ -246,12 +247,19 @@ def main():
     ) = fetch_feedback_data_in_chunks()
 
     feedback_file_content = export_to_csv(feedback_data)
+    mmr_chunks_file_content = save_chunks_to_stringio()
     attachments = [
         {
             "filename": feedback_output_file_name,
             "content": feedback_file_content
         }
     ]
+    if mmr_chunks_file_content:
+        attachments.append({
+            "filename": mmr_chunks_file_name,
+            "content": mmr_chunks_file_content
+        })
+
     if not feedback_file_content:
         print("Failed to export feedback data")
         return
