@@ -23,6 +23,7 @@ SMTP_SERVER = os.getenv("SMTP_SERVER", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 0))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
 SMPT_PASSWORD = os.getenv("SMPT_PASSWORD", "")
+INSTANCE_NAME = os.getenv("INSTANCE_NAME", "")
 
 current_date = datetime.now().date().strftime("%d-%m-%Y")
 current_time = datetime.now(timezone.utc)  # Ensures current_time is timezone-aware (UTC)
@@ -236,8 +237,8 @@ def main():
     Main function to orchestrate the workflow of fetching feedback data,
     exporting it to an in-memory CSV, and sending it via email.
     """
-    feedback_output_file_name = f"feedback_data_{current_date}.csv"
-    mmr_chunks_file_name = f"mmr_chunks_{current_date}.txt"
+    feedback_output_file_name = f"{INSTANCE_NAME}_feedback_data_{current_date}.csv"
+    mmr_chunks_file_name = f"{INSTANCE_NAME}_mmr_chunks_{current_date}.txt"
 
     # Fetch feedback data in chunks
     (
@@ -273,13 +274,13 @@ def main():
     
     time_info = f"<strong>Time:</strong> {utc_time.time().strftime('%H:%M:%S')} (UTC) / {ist_time.time().strftime('%H:%M:%S')} (IST)"
 
-    subject = f"Feedback Data CSV {current_date}"
+    subject = f"{INSTANCE_NAME} Feedback Data CSV {current_date}"
     body = f"""
             <html>
             <body>
                 <p>Hello,</p>
 
-                <p>Please find the attached feedback data CSV file for GESCO.</p>
+                <p>Please find the attached feedback data CSV file for {INSTANCE_NAME}.</p>
 
                 <p><strong>Key Metrics:</strong></p>
                 <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 50%;">
