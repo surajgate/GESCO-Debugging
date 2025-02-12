@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from sqlalchemy import func, or_
 from sqlalchemy.dialects.postgresql import JSONB
 from langchain_milvus import Milvus
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import AzureOpenAIEmbeddings
 
 from db import get_db, chats, chat_feedback, user, user_departments
 
@@ -25,6 +25,9 @@ MMR_LAMBDA_MULT = float(os.getenv("MMR_LAMBDA_MULT", default="0.2"))
 NUM_CHUNKS_TO_MMR = int(os.getenv("NUM_CHUNKS_TO_MMR", default="100"))
 DEPARTMENT_ID = os.getenv("DEPARTMENT_ID","")
 
+AZURE_OPENAI_EMBEDDINGS_MODEL = os.getenv("AZURE_OPENAI_EMBEDDINGS_MODEL", "")
+AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT = os.getenv("AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT", "")
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
 
 def fetch_answer_without_citations():
     """
@@ -118,7 +121,11 @@ def fetch_mmr_chunks_and_scores(question):
         list: A list of dictionaries containing chunk metadata and content.
     """
     try:
-        embedding_function = OpenAIEmbeddings(model=OPENAI_EMBEDDINGS_MODEL)
+        embedding_function = AzureOpenAIEmbeddings(
+            api_key=AZURE_OPENAI_API_KEY,
+            model=AZURE_OPENAI_EMBEDDINGS_MODEL,
+            azure_deployment=AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT
+        )
         vectorstore = Milvus(
             connection_args={"uri": MILVUS_CONNECTION_URI},
             embedding_function=embedding_function,
