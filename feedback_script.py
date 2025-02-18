@@ -9,7 +9,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.dialects.postgresql import JSONB
 
 from db import get_db, chats, chat_feedback, user, user_departments
-from mmr_chunks_retrieval_script import save_chunks_to_stringio
+from hybrid_search_chunk_retrieval_script import save_chunks_to_stringio
 
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -238,7 +238,7 @@ def main():
     exporting it to an in-memory CSV, and sending it via email.
     """
     feedback_output_file_name = f"{INSTANCE_NAME}_feedback_data_{current_date}.csv"
-    mmr_chunks_file_name = f"{INSTANCE_NAME}_mmr_chunks_{current_date}.txt"
+    hybrid_search_chunks_file_name = f"{INSTANCE_NAME}_hybrid_search_chunks_{current_date}.txt"
 
     # Fetch feedback data in chunks
     (
@@ -248,17 +248,17 @@ def main():
     ) = fetch_feedback_data_in_chunks()
 
     feedback_file_content = export_to_csv(feedback_data)
-    mmr_chunks_file_content = save_chunks_to_stringio()
+    hybrid_search_chunks_file_content = save_chunks_to_stringio()
     attachments = [
         {
             "filename": feedback_output_file_name,
             "content": feedback_file_content
         }
     ]
-    if mmr_chunks_file_content:
+    if hybrid_search_chunks_file_content:
         attachments.append({
-            "filename": mmr_chunks_file_name,
-            "content": mmr_chunks_file_content
+            "filename": hybrid_search_chunks_file_name,
+            "content": hybrid_search_chunks_file_content
         })
 
     if not feedback_file_content:
