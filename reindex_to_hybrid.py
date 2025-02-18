@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 MILVUS_CONNECTION_URI = os.getenv("MILVUS_CONNECTION_URI")
-INSTANCE_TYPE = os.getenv("INSTANCE_TYPE", "CHATGPT")
 
 OPENAI_EMBEDDINGS_MODEL = os.getenv("OPENAI_EMBEDDINGS_MODEL")
 AZURE_OPENAI_EMBEDDINGS_MODEL = os.getenv(
