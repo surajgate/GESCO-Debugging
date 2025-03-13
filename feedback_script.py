@@ -75,6 +75,7 @@ def fetch_feedback_data_in_chunks(chunk_size=10000):
                 chats.c.response,
                 chats.c.citations,
                 chats.c.created_at,
+                chat_feedback.c.created_at.label("Feedback created at"),
             )
             .join(chats, chats.c.user_id == user.c.id)
             .outerjoin(chat_feedback, chat_feedback.c.chat_id == chats.c.id)
